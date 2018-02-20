@@ -1,0 +1,12 @@
+{
+  "name": "assignment-2",
+  "version": "0.0.0",
+  "description": "Implement a simple communication protocol that transmits data between 2 BBC Micro:bit devices, using GPIOs.",
+  "author": "Alexander Collins",
+  "license": "MIT",
+  "dependencies": {
+    "microbit": "lancaster-university/microbit"
+  },
+  "targetDependencies": {},
+  "bin": "./src"
+}
