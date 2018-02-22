@@ -13,37 +13,32 @@
 //========
 // includes
 #include "MicroBit.h"
+#include "img.h"
+#include "morsebit.h"
 // defines
-#define DOT_TIMELIMIT	500
-#define DASH_TIMELIMIT	2000
-#define DEAD_TIMELIMIT	3000
-#define DISPLAY_TIME	30
+#define MODE_IDLE	0
+#define	MODE_RX		1
+#define	MODE_TX		2
+#define LO	0
+#define HI	1
 
 //=========
 // GLOBALS
 //=========
 // microbit
 MicroBit uBit;
+MicroBitPin		ioPin(MICROBIT_ID_IO_P2, MICROBIT_PIN_P2, PIN_CAPABILITY_DIGITAL);	// r/w pin
+MicroBitButton	inBtn(MICROBIT_PIN_BUTTON_A, MICROBIT_ID_BUTTON_A);					// input button
 // variables
-bool main_loop = true;
-bool receiving = false;
-int dead = 0;
-unsigned long timestamp = 0;
-unsigned long duration = 0;;
+int mode;
+char buffer[MORSEBIT_MAX_BUFFER_SIZE];
+bool main_loop;
 
 //============
 // PROTOTYPES
 //============
-void button_listener();
-void event_handler(MicroBitEvent evt)
-{
-	if(evt.source == MICROBIT_ID_BUTTON_B)
-		receiving = true;
-}
-void register_listeners()
-{
-	uBit.messageBus.listen(MICROBIT_ID_BUTTON_B, MICROBIT_EVT_ANY, event_handler, MESSAGE_BUS_LISTENER_IMMEDIATE);
-}
+bool check_pin(MicroBit *uBit);
+bool check_btn(MicroBit *uBit);
 
 //======
 // MAIN
@@ -52,24 +47,40 @@ int main()
 {
 //init
 	uBit.init();
-	register_listeners();
+	main_loop = true;
+	mode = MODE_IDLE;
 	uBit.display.scroll("RDY", 75);
+	uBit.serial.printf("\r\n---RDY---\r\n");
 //----
 //loop
-	create_fiber(button_listener);
 	while(main_loop)
 	{
-		while(!receiving)
-			uBit.sleep(1000);
-		if (receiving)
+		uBit.serial.printf("MODE: %i\r\n", mode);
+		switch(mode)
 		{
-			//@TODO
-			uBit.serial.printf("received");
+			case MODE_RX:
+				uBit.display.scrollAsync("RX", 75);
+				mode = MODE_IDLE;
+				break;
+			case MODE_TX:
+				uBit.display.scrollAsync("TX", 75);
+				MORSEBIT_get_morsecode(&uBit, &inBtn, buffer);
+				//
+				break;
+			default:	// IDLE
+				uBit.display.scrollAsync("IDLE", 75);
+				if (check_pin(&uBit))
+					mode = MODE_RX;
+				else if (check_btn(&uBit))
+					mode = MODE_TX;
+				break;
 		}
+		uBit.sleep(1000);
 	}
 //----
 //exit
 	uBit.display.scroll("BYE", 75);
+	uBit.serial.printf("\r\n---BYE---\r\n");
 	release_fiber();
 //----
 }
@@ -77,41 +88,39 @@ int main()
 //===========
 // FUNCTIONS
 //===========
-void button_listener()
+bool check_pin(MicroBit *uBit)
 {
-	while (1)
+	unsigned long timestamp = uBit->systemTime();
+	while (ioPin.getDigitalValue() == HI)
 	{
-		timestamp = uBit.systemTime();
-		while(uBit.buttonA.isPressed())
-		{
-			// wait for button to be released
-		}
-		duration = uBit.systemTime() - timestamp;
-
-		if (duration > 100 && duration < DEAD_TIMELIMIT)
-		{
-			dead = -1;
-			uBit.serial.printf("%u: ", duration);
-			if (duration < DOT_TIMELIMIT)
-			{
-				uBit.serial.printf(".\r\n");
-				uBit.display.scrollAsync(".", DISPLAY_TIME);
-			}
-			else if (duration >= DOT_TIMELIMIT && duration <= DASH_TIMELIMIT)
-			{
-				uBit.serial.printf("-\r\n");
-				uBit.display.scrollAsync("-", DISPLAY_TIME);
-			}
-		}
-		else if (dead == -1)
-			dead = uBit.systemTime();
-
-		if ((uBit.systemTime() - dead) == DEAD_TIMELIMIT)
-		{
-			dead = -1;
-			uBit.serial.printf("dead\r\n");
-			uBit.display.clear();
-		}
+		// wait for pin to go LO
+		IMG_animation_rotation(uBit, 1, 50, true);
 	}
+	unsigned long duration = uBit->systemTime() - timestamp;
+
+	uBit->serial.printf("check_pin(): %u\r\n", duration);
+
+	if (duration >= (MORSEBIT_PIN_MSG_INCOMING - MORSEBIT_OFFSET) && duration <= (MORSEBIT_PIN_MSG_INCOMING + MORSEBIT_OFFSET))
+		return true;
+	else
+		return false;
+}
+
+bool check_btn(MicroBit *uBit)
+{
+	bool triggered = false;
+	while (inBtn.isPressed())
+	{
+		triggered = true;
+		// display animation so user knows to release button
+		IMG_animation_rotation(uBit, 1, 50, false);
+	}
+
+	uBit->serial.printf("check_btn(): %i\r\n", triggered);
+
+	if (triggered)
+		return true;
+	else
+		return false;
 }
 
