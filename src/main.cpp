@@ -1,24 +1,24 @@
-/*------------------------------------------
-|	Proj: Challenge1-UFCFVK-15-2 
-|	File: main.cpp
-|	Auth: Alexander Collins
-|	Desc: Implement a simple game on the BBC Microbit that uses the LED matrix and at least two \
-|			buttons or other sensors on the device.
-|		  Game that queues several actions and awards the user points for acting them out within \
-|			a certain time period (depending upon difficulty)
-|	Date: Jan-Feb, 2018
-|-----------------------------------------*/
+/*-------------------------------------------------------------------------------------------
+|	Project:		Challenge2-UFCFVK-15-2
+|	File:			main.cpp
+|	Authors:		Alexander Collins, Wei Jun
+|	Description:	Implement a simple communication protocol that transmits data between 2 \
+|					 BBC Micro:bit devices, using GPIOs.
+|	Notes:			Hard-tabs (4 spaces)
+|	Date:			Feb, 2018
+-------------------------------------------------------------------------------------------*/
 //========
 // MACROS
 //========
 // includes
 #include "MicroBit.h"
-#include "img.h"
-#include "morsebit.h"
+#include "img.h"		//IMG_*
+#include "MorseBit.h"	//MorseBit_*
 // defines
 #define MODE_IDLE	0
-#define	MODE_RX		1
-#define	MODE_TX		2
+#define MODE_RX		1
+#define MODE_TX		2
+
 #define LO	0
 #define HI	1
 
@@ -26,19 +26,19 @@
 // GLOBALS
 //=========
 // microbit
-MicroBit uBit;
+MicroBit		uBit;
 MicroBitPin		ioPin(MICROBIT_ID_IO_P2, MICROBIT_PIN_P2, PIN_CAPABILITY_DIGITAL);	// r/w pin
 MicroBitButton	inBtn(MICROBIT_PIN_BUTTON_A, MICROBIT_ID_BUTTON_A);					// input button
 // variables
 int mode;
-char buffer[MORSEBIT_MAX_BUFFER_SIZE];
 bool main_loop;
+char buffer[MorseBit_MAX_BUFFER];
 
 //============
 // PROTOTYPES
 //============
-bool check_pin(MicroBit *uBit);
-bool check_btn(MicroBit *uBit);
+bool check_pin(MicroBit *uBit, MicroBitPin *pin);
+bool check_button(MicroBit *uBit, MicroBitButton *button);
 
 //======
 // MAIN
@@ -47,31 +47,31 @@ int main()
 {
 //init
 	uBit.init();
-	main_loop = true;
 	mode = MODE_IDLE;
-	uBit.display.scroll("RDY", 75);
+	main_loop = true;
+	uBit.display.scrollAsync("RDY", 75);
 	uBit.serial.printf("\r\n---RDY---\r\n");
 //----
-//loop
-	while(main_loop)
+//main
+	while (main_loop)
 	{
 		uBit.serial.printf("MODE: %i\r\n", mode);
 		switch(mode)
 		{
 			case MODE_RX:
-				uBit.display.scrollAsync("RX", 75);
+				uBit.display.scroll("RX", 75);
 				mode = MODE_IDLE;
 				break;
 			case MODE_TX:
-				uBit.display.scrollAsync("TX", 75);
-				MORSEBIT_get_morsecode(&uBit, &inBtn, buffer);
-				//
+				uBit.display.scroll("TX", 75);
+				MorseBit_getMorseCode(&uBit, &inBtn, buffer);
+				uBit.serial.printf("buffer: %s\r\n", buffer);
+				mode = MODE_IDLE;
 				break;
-			default:	// IDLE
-				uBit.display.scrollAsync("IDLE", 75);
-				if (check_pin(&uBit))
+			default:	//MODE_IDLE
+				if (check_pin(&uBit, &ioPin))
 					mode = MODE_RX;
-				else if (check_btn(&uBit))
+				else if (check_button(&uBit, &inBtn))
 					mode = MODE_TX;
 				break;
 		}
@@ -85,42 +85,40 @@ int main()
 //----
 }
 
-//===========
-// FUNCTIONS
-//===========
-bool check_pin(MicroBit *uBit)
+bool check_pin(MicroBit *uBit, MicroBitPin *pin)
 {
+	// get current time
 	unsigned long timestamp = uBit->systemTime();
-	while (ioPin.getDigitalValue() == HI)
+	// wait for pin to go LO
+	while(pin->getDigitalValue() == HI)
 	{
-		// wait for pin to go LO
-		IMG_animation_rotation(uBit, 1, 50, true);
+		// play animation to let the user know partner is about to send data
+		IMG_animation_rotation(uBit, 1, 75, true);
 	}
+	// count how long pin was HI for
 	unsigned long duration = uBit->systemTime() - timestamp;
 
 	uBit->serial.printf("check_pin(): %u\r\n", duration);
 
-	if (duration >= (MORSEBIT_PIN_MSG_INCOMING - MORSEBIT_OFFSET) && duration <= (MORSEBIT_PIN_MSG_INCOMING + MORSEBIT_OFFSET))
+	// if duration is HI long enough to signal incoming message
+	if (duration >= (MorseBit_PIN_INCOMING_MSG - MorseBit_OFFSET) && duration <= (MorseBit_PIN_INCOMING_MSG + MorseBit_OFFSET))
 		return true;
 	else
 		return false;
 }
 
-bool check_btn(MicroBit *uBit)
+bool check_button(MicroBit *uBit, MicroBitButton *button)
 {
 	bool triggered = false;
-	while (inBtn.isPressed())
+	while (button->isPressed())
 	{
 		triggered = true;
-		// display animation so user knows to release button
-		IMG_animation_rotation(uBit, 1, 50, false);
+		// display animation so the user knows function has triggered
+		IMG_animation_rotation(uBit, 1, 75, false);
 	}
 
-	uBit->serial.printf("check_btn(): %i\r\n", triggered);
+	uBit->serial.printf("check_button(): %i\r\n", triggered);
 
-	if (triggered)
-		return true;
-	else
-		return false;
+	return triggered;
 }
 
