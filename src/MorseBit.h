@@ -16,7 +16,7 @@
 #include "MicroBit.h"
 // defines
 #define MorseBit_OFFSET					100		// used to counter physical innacuracies
-#define MorseBit_PIN_INCOMING_MSG		9100
+#define MorseBit_PIN_INCOMING_MSG		5100
 
 #define MorseBit_DOT_HOLD			500		// user holds button for .5 secs = DOT
 #define MorseBit_DASH_HOLD			1500	// user holds button for 1.5 secs = DASH
@@ -32,14 +32,21 @@
 
 #define MorseBit_MAX_BUFFER		250		//@NOTE: 250 = placeholder
 
+#define MorseBit_BIT_MS		200
+
 //===========
 // FUNCTIONS
 //===========
 /*
 	@TODO doc
-	bool returns true if morsecode inputted was valid
 */
-bool MorseBit_getMorseCode(MicroBit *uBit, MicroBitButton *btn, char *buff);
+void MorseBit_getMorseCode(MicroBit *uBit, MicroBitButton *btn, MicroBitPin *pin, char *buff);
+/*
+	@TODO doc
+*/
+void MorseBit_encrypt(char *morse_code, int *encryption);
+
+bool MorseBit_tx(MicroBit *uBit, MicroBitPin *pin, char *buffer);
 
 #endif	//_MORSEBIT_
 

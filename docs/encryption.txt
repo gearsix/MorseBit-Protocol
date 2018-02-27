@@ -1,11 +1,16 @@
-Encrypting:
-1. Find INDEX in morsecode_binarytree_lookup.txt
-2. number1 = Divide INDEX by 2
-3. number2 = Minus 1 from the number1
-4. number3 = encrypted INDEX in morsecode_binarytree_lookup.txt
+void encrypt(int[] letterIndexes, int[] encryptedIndexes)
+{
+	for:
+		1. Find INDEX in morsecode_binarytree_lookup.txt
+		2. number1 = Divide INDEX by 2
+		3. number2 = Minus 1 from the number1
+		4. number3 = encrypted INDEX in morsecode_binarytree_lookup.txt
+}
 
 Decrypting:
+decrypt(int[] encryptedIndexes, int[] letterIndexes)
 1. number1 = encrypted INDEX in morsecode_binarytree_lookup.txt
 2. number2 = Add 1 to number1
 3. number3 = Times number2 by 2
 4. Find number3 in morsecode_binarytree_lookup.txt
+

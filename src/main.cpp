@@ -49,7 +49,7 @@ int main()
 	uBit.init();
 	mode = MODE_IDLE;
 	main_loop = true;
-	uBit.display.scrollAsync("RDY", 75);
+	uBit.display.scroll("RDY", 75);
 	uBit.serial.printf("\r\n---RDY---\r\n");
 //----
 //main
@@ -59,16 +59,17 @@ int main()
 		switch(mode)
 		{
 			case MODE_RX:
-				uBit.display.scroll("RX", 75);
+				uBit.display.scrollAsync("RX", 75);
 				mode = MODE_IDLE;
 				break;
 			case MODE_TX:
 				uBit.display.scroll("TX", 75);
-				MorseBit_getMorseCode(&uBit, &inBtn, buffer);
-				uBit.serial.printf("buffer: %s\r\n", buffer);
+				MorseBit_getMorseCode(&uBit, &inBtn, &ioPin, buffer);
+				MorseBit_tx(&uBit, &ioPin, buffer);
 				mode = MODE_IDLE;
 				break;
 			default:	//MODE_IDLE
+				uBit.display.scrollAsync("IDLE", 75);
 				if (check_pin(&uBit, &ioPin))
 					mode = MODE_RX;
 				else if (check_button(&uBit, &inBtn))
@@ -105,6 +106,7 @@ bool check_pin(MicroBit *uBit, MicroBitPin *pin)
 		return true;
 	else
 		return false;
+
 }
 
 bool check_button(MicroBit *uBit, MicroBitButton *button)
