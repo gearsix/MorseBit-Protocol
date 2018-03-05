@@ -14,39 +14,54 @@
 //========
 // includes
 #include "MicroBit.h"
+#include "MicroIMG.h"
 // defines
-#define MorseBit_OFFSET					100		// used to counter physical innacuracies
-#define MorseBit_PIN_INCOMING_MSG		5100
+#define MorseBit_OFFSET			100		// used to counter physical innacuracies
 
-#define MorseBit_DOT_HOLD			500		// user holds button for .5 secs = DOT
-#define MorseBit_DASH_HOLD			1500	// user holds button for 1.5 secs = DASH
-#define MorseBit_LETTERSPACE_GAP	2000	// user releases button for 1 sec = LETTER SPACE
-#define MorseBit_DEAD_TIME			4000	// user releases button for 4 secs = FINISHED (aka DEAD)
+#define MorseBit_INCOMING		2000	// if Pin is HI for this period, signals incoming message
 
-#define MorseBit_DOT			'.'	// symbol used to characterise DOT
-#define MorseBit_DASH			'-'	// symbol used to characterise DASH
-#define MorseBit_LETTERSPACE	'/'	// symbol used to characterise LETTER SPACES
-#define MorseBit_TERMINATOR		';'	// doc
+#define MorseBit_MAX_BUFF		250		//@PLACEHOLDER	// max size of buffers used in protocol
 
-#define MorseBit_DISPLAY_SPEED	75	// speed the symbols scroll across the display
+#define MorseBit_DISPLAY_SPEED	35		// speed DOT and DASH scroll across MicroBit display
 
-#define MorseBit_MAX_BUFFER		250		//@NOTE: 250 = placeholder
+#define MorseBit_LETTERSPACE	'/'
+#define MorseBit_DOT			'.'
+#define MorseBit_DASH			'-'
+#define MorseBit_TERMINATOR		';'
 
-#define MorseBit_BIT_MS		200
+#define MorseBit_LETTERSPACE_TIME	2000
+#define MorseBit_DOT_TIME			500
+#define MorseBit_DASH_TIME			1500
+#define MorseBit_DEAD_TIME			3500
 
 //===========
 // FUNCTIONS
 //===========
 /*
-	@TODO doc
+	Listens to button presses and translates into morse code.
+	Only dots, dashes and letter spaces are implemented.
+
+	@param MicroBit *uBit - MicroBit used for systemTime()
+	@param MicroBitButton *button - MicroBitButton used to listen for morse code presses
+	@param char *buff - buffer where morse code is stored
 */
-void MorseBit_getMorseCode(MicroBit *uBit, MicroBitButton *btn, MicroBitPin *pin, char *buff);
+void MorseBit_getMorseCode(MicroBit *uBit, MicroBitButton *button, char *buff);
+
 /*
-	@TODO doc
+	Encrypts a char * of morse code into a uint8_t of encrypted indexes (uses the MorseBit encryption algorithm)
+
+	@param char *morse - a char * of MorseBit_DOT, MorseBit_DASH and MorseBit_LETTERSAPCE
+	@param uint8_t *encrypt - a uint8_t * (preferable of size MorseBit_MAX_BUFF) where the encrypted indexes will be stored
 */
-void MorseBit_encrypt(char *morse_code, int *encryption);
+void MorseBit_encryptMorse(char *morse, uint8_t *encrypt);
 
-bool MorseBit_tx(MicroBit *uBit, MicroBitPin *pin, char *buffer);
+/*
+	Decrypts a uint8_t * of encrypted indexes (via the MorseBit encryption algorithm) into a char * of characters
 
-#endif	//_MORSEBIT_
+	@param uint8_t *encrypt - a uint8_t * of encrypted indexes
+	@param char *buff - a char * where the decrypted characters will be stored (preferably of size MorseBit_MAX_BUFF)
+*/
+void MorseBit_decryptIndex(uint8_t *encrypt, char *buff);
+
+#endif
 

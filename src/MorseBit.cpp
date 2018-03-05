@@ -1,6 +1,6 @@
 /*-------------------------------------------------------------------------------------------
 |	Project:		Challenge2-UFCFVK-15-2
-|	File:			MorseBit.c
+|	File:			MorseBit.cpp
 |	Authors:		Alexander Collins, Wei Jun
 |	Description:	Header for the MorseBit protocol
 |	Notes:			Hard-tabs (4 spaces)
@@ -14,6 +14,8 @@
 // defines
 #define LO 0
 #define HI 1
+
+#define RESET -1
 
 //=========
 // GLOBALS
@@ -55,231 +57,109 @@ static char alphabet[50] = {
 // FUNCTIONS
 //===========
 // private
-static void translateMorseToAlphabet(char *morse_code, char *buffer)
+static unsigned long getButtonPressTime(MicroBit *uBit, MicroBitButton *button)
 {
-	uint8_t bit = 1;	// bit used to traverse binary tree
+	unsigned long timestamp = uBit->systemTime();
+	while (button->isPressed());	// wait
+	return uBit->systemTime() - timestamp;
+}
+static void translateMorseToIndex(char *morse, uint8_t *index)
+{
+	int i = 1;			// index for index (hah)
+	uint8_t bit = 1;	// bit used to traverse binary tree (as bits are pushed onto it)
 
-	for (uint8_t i = 0; i < strlen(morse_code); i++)
+	for (size_t m = 0; m < strlen(morse); m++)
 	{
-		switch(morse_code[i])
+		switch(morse[m])
 		{
-			case MorseBit_DOT:
-				bit = (bit << 1);		// bitshift 0
-				break;
-			case MorseBit_DASH:
-				bit = (bit << 1) | 1;	// bitshift 1
-				break;
+			case MorseBit_DOT:			bit = (bit << 1);	break;	// bitshift left 0
+			case MorseBit_DASH:			bit = (bit << 1)|1;	break;	// bitshift left 1
 			case MorseBit_TERMINATOR:
-				i = strlen(morse_code)+1;
-				// fall-through
+				m = strlen(morse);	// end loop
+				index[i++] = bit;	// push bit
+				bit = 1;			// reset bit
+				break;
 			case MorseBit_LETTERSPACE:
-				*buffer++ = alphabet[bit];
-				bit = 1;
+				index[i++] = bit;	// push bit
+				bit = 1;			// reset bit
 				break;
 		}
 	}
-}
-static void translateMorseToIndexes(MicroBit *uBit, char *morse_code, uint8_t indexes[])
-{
-	int i = 1;
-	uint8_t bit = 1;	// bit used to traverse binary tree
 
-	for (unsigned int m = 0; m < strlen(morse_code); m++)
-	{
-		switch(morse_code[m])
-		{
-			case MorseBit_DOT:
-				bit = (bit << 1);		//bitshift 0
-				break;
-			case MorseBit_DASH:
-				bit = (bit << 1) | 1;	//bitshift 1
-				break;
-			case MorseBit_TERMINATOR:
-				m = strlen(morse_code)+1;
-				indexes[i] = bit;
-				i++;
-				bit = 1;
-				break;
-			case MorseBit_LETTERSPACE:
-				indexes[i] = bit;
-				i++;
-				bit = 1;
-				break;
-		}
-	}
-	
-	indexes[0] = i-1;
+	index[0] = i - 1;	// index[0] = number of letters
 }
-
 // public
-//see MorseBit.h for doc
-void MorseBit_getMorseCode(MicroBit *uBit, MicroBitButton *button, MicroBitPin *pin, char *buff)
+void MorseBit_getMorseCode(MicroBit *uBit, MicroBitButton *button, char *buff)
 {
 	bool finished = false;
-	char morse_code[MorseBit_MAX_BUFFER] = { 0 };
-	int m = 0;	//morse_code index
-	long dead_counter = -1;
-	unsigned long timestamp, duration;
-
-	// signal to partner msg is incoming
-		pin->setDigitalValue(HI);
+	char morse[MorseBit_MAX_BUFF] = { 0 };
+	int m = 0;					// index for morse[]
+	long dead = RESET;	// counts dead(no user input) time
+	unsigned long duration;
 
 	while (!finished)
 	{
-		// get button input time
-		timestamp = uBit->systemTime();
-		while (button->isPressed())
+		duration = getButtonPressTime(uBit, button);
+
+		// if input detected
+		if (duration > MorseBit_OFFSET && (uBit->systemTime() - dead) < MorseBit_DEAD_TIME)
 		{
-			// wait for button to be released
-		}
-		duration = uBit->systemTime() - timestamp;
+			// check for LETTERSPACE in dead
+			if ((uBit->systemTime() - dead) >= MorseBit_LETTERSPACE_TIME)
+				morse[m++] = MorseBit_LETTERSPACE;
 
-		// check button input time
-		if (duration > MorseBit_OFFSET && (uBit->systemTime() - dead_counter) < MorseBit_DEAD_TIME)
-		{
-			//uBit->serial.printf("press: %u\tdead: %u\r\n", duration, uBit->systemTime() - dead_counter);
-			// check dead_counter for LETTER SPACE
-			if ((uBit->systemTime() - dead_counter) >= MorseBit_LETTERSPACE_GAP)// && (uBit->systemTime() - dead_counter) < MorseBit_WORDSPACE_GAP)
-			{
-			//	uBit->display.scrollAsync(MorseBit_LETTERSPACE, 75);
-				morse_code[m++] = MorseBit_LETTERSPACE;
-			}
-
-			dead_counter = -1;	// reset dead_counter
-
-			// if DOT
-			if (duration <= MorseBit_DOT_HOLD)
+			// reset dead counter
+			dead = -1;
+			
+			// check for DOT in duration
+			if (duration <= MorseBit_DOT_TIME)
 			{
 				uBit->display.scrollAsync(MorseBit_DOT, MorseBit_DISPLAY_SPEED);
-				morse_code[m++] = MorseBit_DOT;
+				morse[m++] = MorseBit_DOT;
 			}
-			// if DASH
-			else if (duration > MorseBit_DOT_HOLD && duration <= MorseBit_DASH_HOLD)
+			// check for DASH in duration
+			else if (duration <= MorseBit_DASH_TIME)
 			{
 				uBit->display.scrollAsync(MorseBit_DASH, MorseBit_DISPLAY_SPEED);
-				morse_code[m++] = MorseBit_DASH;
+				morse[m++] = MorseBit_DASH;
 			}
 		}
-		// if no input detected, start dead_counter
-		else if (dead_counter == -1)
-			dead_counter = uBit->systemTime();
-
-		// end of input
-		if ((uBit->systemTime() - dead_counter) == MorseBit_DEAD_TIME)
+		// if no input detected
+		else if (dead == RESET)
+			dead = uBit->systemTime();	// start dead counter
+		// if end of input
+		else if ((uBit->systemTime() - dead) >= MorseBit_DEAD_TIME)
 		{
-			// print to show finished
-			uBit->display.print("DONE", 75);
-				// tick if input == valid mcode
-				// cross if not ?
-			morse_code[m] = MorseBit_TERMINATOR;
-			uBit->serial.printf("getMorseCode(): %s\r\n", morse_code);
-			strcpy(buff, morse_code);
-			// check for prosign, return value ?
-			finished = true;
+			morse[m] = MorseBit_TERMINATOR;
+		#if DEBUG
+			uBit->serial.printf("MorseBit_getMorseCode(): %s\r\n", morse);
+		#endif
+			strcpy(buff, morse);
+			uBit->display.print(MicroIMG_tick);
+			uBit->sleep(2000);
 		}
 	}
-	pin->setDigitalValue(LO);
 }
 
-void MorseBit_encrypt(MicroBit *uBit, char *morse_code, uint8_t *encryption)
+void MorseBit_encryptMorse(char *morse, uint8_t *encrypt)
 {
-	uint8_t indexes[MorseBit_MAX_BUFFER] = {0};
+	for (size_t i = 0; i < sizeof(encrypt); i++)
+		encrypt[i] = 0;
 
-	translateMorseToIndexes(uBit, morse_code, indexes);
+	translateMorseToIndex(morse, encrypt);
 
-	//cp size
-	encryption[0] = indexes[0];
-	// start at 1 so we don't overwrite size
-	for (size_t i = 1; indexes[i] != 0; i++) {
-		uint8_t num = 0;
-		uint8_t encNum = 0;
-
-		// get number from array and DIVIDED by 2 then - 1
-		num = indexes[i]/2;
-		encNum = num - 1;
-
-		// send to encryptedIndex
-		encryption[i] = encNum;
-	}
+	for (size_t i = 1; encrypt[i] != 0; i++)
+		encrypt[i] = (encrypt[i] / 2) - 1;
 }
- 
 
-static void tx(uint8_t value, MicroBit *uBit, MicroBitPin *pin)
+void MorseBit_decryptIndex(uint8_t *encrypt, char *buff)
 {
-	uint8_t bit;
-	unsigned long timestamp; 
-	for (int i = 7; i >= 0; i--)
-	{
-		bit = value >> i;
-
-		timestamp = uBit->systemTime();
-		while ((uBit->systemTime() - timestamp) != MorseBit_BIT_MS)
-			pin->setDigitalValue(bit & 1);
-		pin->setDigitalValue(0);
-	}
+	// assumes encrypt[0] contains number of indexes to decrypt
+	for (int i = 1; i < encrypt[0]; i++)
+		buff[i-1] = alphabet[(encrypt[i] + 1) * 2];
 }
 
-bool MorseBit_tx(MicroBit *uBit, MicroBitPin *pin, char *buffer)
+void MorseBit_tx(MicroBit *uBit, MicroBitPin *pin, char *buff)
 {
-	unsigned long timestamp;
-	uint8_t encryption[MorseBit_MAX_BUFFER] = {0};
-
-	MorseBit_encrypt(uBit, buffer, encryption);
-
-	uBit->serial.printf("e: %i\r\n", encryption[0]);
-
-	uBit->sleep(1000);
-	// note: encryption[0] = num letters
-	for (uint8_t i = 0; i < encryption[0]+1; i++)
-	{
-		uBit->sleep(1000);
-		uBit->serial.printf("v: %u\r\n", encryption[i]);
-		tx(encryption[i], uBit, pin);
-	}
 }
-
-
-/*
-bool MorseBit_recieveMorseBit(MicroBit *uBit, MicroBitPin *pin, char *recv)
-{
-	bool finished = false;
-	unsigned long lo_time, hi_time;
-	unsigned long timestamp;
-	uint8_t bit = 1;
-	while (!finished)
-	{
-		// each packet = 6 bits
-		for (int i = 0; i < 6; i++)
-		{
-			// get current time
-			timestamp = uBit->systemTime();
-			// wait for pin to go LO
-			while (pin->getDigitalValue() == HI)
-			{
-			}
-			// count how long pin was HI
-			hi_time = uBit->systemTime() - timestamp;
-
-			// if HI == BIT_MS
-			if (hi_time >= (MorseBit_BIT_MS - MorseBit_OFFSET) && hi_time <= (MorseBit_BIT_MS + MorseBit_OFFSET))
-			{
-				bit = (bit << 1) | 1;	// bitshift 1
-			}
-			// else start counting LO
-			else (lo_time == -1)
-				lo_time = uBit->systemTime();
-			// if LO == BIT_MS
-			else if (lo_time >= (MorseBit_BIT_MS - MorseBit_OFFSET) && lo_time <= (MorseBit_BIT_MS + MorseBit_OFFSET))
-			{
-				bit = (bit << 1)		// bitshift 0
-			}
-		}
-
-		uBit->serial.printf("SIZE: %u\r\n", bit);
-		uBit->sleep(1000);
-	}
-
-	return true;
-}
-*/
 
