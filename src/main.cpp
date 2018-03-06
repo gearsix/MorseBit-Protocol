@@ -34,8 +34,9 @@ MicroBitButton	inBtn(MICROBIT_PIN_BUTTON_A, MICROBIT_ID_BUTTON_A);					// input 
 // variables
 int mode;
 bool main_loop;
-char buffer[MorseBit_MAX_BUFF];
-
+unsigned long timestamp;
+char buff[MorseBit_MAX_BUFF];
+uint8_t eBuff[MorseBit_MAX_BUFF];
 //============
 // PROTOTYPES
 //============
@@ -59,6 +60,14 @@ int main()
 //main
 	while (main_loop)
 	{
+		if (mode == MODE_TX || mode == MODE_RX)
+		{
+			for (int i = 0; i < MorseBit_MAX_BUFF; i++)
+			{
+				buff[i] = '\0';
+				eBuff[i] = 0;
+			}
+		}
 	#if DEBUG
 		uBit.serial.printf("MODE: %i\r\n", mode);
 	#endif
@@ -66,26 +75,40 @@ int main()
 		{
 			case MODE_RX:
 				uBit.display.scrollAsync("RX", 75);
-//				MorseBit_rx(&uBit, &ioPin, buffer);
-				uBit.display.scroll(buffer);
-				mode = MODE_IDLE;
+				ioPin.setDigitalValue(HI);					// signal ready to tx
+				MorseBit_rx(&uBit, &ioPin, eBuff);			// recieve encrypted message
+				MorseBit_decrypt(eBuff, buff);				// decrypt message
+			#if DEBUG
+				uBit.serial.printf("%s\r\n", buff);
+			#endif
+				uBit.display.scroll(buff);					// scroll decrypted message
+				MicroIMG_animation_square(&uBit, 1, 75, false);
+				mode = MODE_IDLE;							// go back to IDLE mode
 				break;
 			case MODE_TX:
 				uBit.display.scroll("TX", 75);
-				ioPin.setDigitalValue(HI);	// signal incoming message
-				MorseBit_getMorseCode(&uBit, &inBtn, buffer);
-				ioPin.setDigitalValue(LO);
-//				MorseBit_tx(&uBit, &ioPin, buffer);
-				mode = MODE_IDLE;
+				ioPin.setDigitalValue(HI);					// start incoming message signal
+				MorseBit_getMorseCode(&uBit, &inBtn, buff);	// get morse code from user presses
+				MorseBit_encrypt(buff, eBuff);				// encrypt message
+				ioPin.setDigitalValue(LO);					// end incoming message signal
+				while (ioPin.getDigitalValue() != HI);		// wait for rx to catchup
+				uBit.display.scrollAsync("TXING", 75);
+				MorseBit_tx(&uBit, &ioPin, eBuff);			// send encrypted message
+				mode = MODE_IDLE;							// go back to IDLE mode
 				break;
-			default:	//MODE_IDLE
+			case MODE_IDLE:
 				uBit.display.scrollAsync("IDLE", 75);
+				// check for incoming message signal on pin
 				if (check_pin(&uBit, &ioPin))
 					mode = MODE_RX;
+				// check for button press (signals user is ready to input morse code)
 				else if (check_button(&uBit, &inBtn))
 					mode = MODE_TX;
+				break;	
+			default:	// shouldn't reach here
+				main_loop = false;
 				break;
-		}
+		}	
 	}
 //----
 //exit
