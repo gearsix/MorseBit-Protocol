@@ -103,8 +103,8 @@ cp build/bbc-microbit-classic-gcc/source/morsebit-combined.hex /media/[username]
 
 
 ## Authors
-- **Alexander Collins** - [14029202]
-- **WeiJun Chai** - [16031162]
+- **Alexander Collins**
+- **WeiJun Chai**
 
 
 ## Extras
